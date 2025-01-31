@@ -1,7 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import CSVLogger, ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.models import load_model
 import os
 from scipy.io import wavfile
 import pandas as pd
@@ -9,7 +8,7 @@ import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from models import Conv2D, Conv1D, LSTM
+from models import Conv1D, Conv2D, LSTM
 from tqdm import tqdm
 from glob import glob
 import argparse
@@ -34,40 +33,29 @@ class DataGenerator(tf.keras.utils.Sequence):
 
 
     def __getitem__(self, index):
-        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+        indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
 
         wav_paths = [self.wav_paths[k] for k in indexes]
         labels = [self.labels[k] for k in indexes]
 
-        X = np.empty((self.batch_size, int(self.sr*self.dt), 1), dtype=np.float32)
+        X = np.empty((self.batch_size, int(self.sr * self.dt), 1), dtype=np.float32)
         Y = np.empty((self.batch_size, self.n_classes), dtype=np.float32)
 
-        # Validate and process each audio file
         for i, (path, label) in enumerate(zip(wav_paths, labels)):
             rate, wav = wavfile.read(path)
 
-            # Ensure sample rate matches expected value
-            if rate != self.sr:
-                print(f"Warning: File {path} has sample rate {rate}, expected {self.sr}")
-
-            # Ensure shape matches (16000, 1)
             expected_length = int(self.sr * self.dt)
-            if wav.shape[0] != expected_length:
-                print(f"File {path} has {wav.shape[0]} samples instead of {expected_length}")
-
-            # Trim or pad as necessary
-            if wav.shape[0] > expected_length:  # Trim
+            if wav.shape[0] > expected_length:  
                 wav = wav[:expected_length]
-            elif wav.shape[0] < expected_length:  # Pad with zeros
+            elif wav.shape[0] < expected_length: 
                 pad_length = expected_length - wav.shape[0]
                 wav = np.pad(wav, (0, pad_length), mode='constant')
 
-            # Assign processed audio data
-            X[i,] = wav.reshape(-1, 1)  # Ensures correct shape
+            # Reshape and assign
+            X[i,] = wav.reshape(-1, 1)
             Y[i,] = to_categorical(label, num_classes=self.n_classes)
 
         return X, Y
-
 
 
     def on_epoch_end(self):
@@ -85,10 +73,9 @@ def train(args):
     params = {'N_CLASSES':len(os.listdir(args.src_root)),
               'SR':sr,
               'DT':dt}
-    models = {  'conv1d' :Conv1D(**params),
-                'conv2d':Conv2D(**params),
-                'lstm' :LSTM(**params),}
-    
+    models = {'conv1d':Conv1D(**params),
+              'conv2d':Conv2D(**params),
+              'lstm':  LSTM(**params)}
     assert model_type in models.keys(), '{} not an available model'.format(model_type)
     csv_path = os.path.join('logs', '{}_history.csv'.format(model_type))
 
@@ -124,7 +111,7 @@ def train(args):
               callbacks=[csv_logger, cp])
 
 if __name__ == '__main__':
-    
+
     parser = argparse.ArgumentParser(description='Audio Classification Training')
     parser.add_argument('--model_type', type=str, default='conv2d',
                         help='model to run. i.e. conv1d, conv2d, lstm')
@@ -132,18 +119,10 @@ if __name__ == '__main__':
                         help='directory of audio files in total duration')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='batch size')
-    parser.add_argument('--delta_time', '-dt', type=float, default=1.0,
+    parser.add_argument('--delta_time', '-dt', type=float, default=1.6,
                         help='time in seconds to sample audio')
     parser.add_argument('--sample_rate', '-sr', type=int, default=16000,
                         help='sample rate of clean audio')
     args, _ = parser.parse_known_args()
 
     train(args)
-    model_path = 'conv2d/{}.h5'.format(args.model_type)
-    model = load_model(model_path)  
-    converter = tf.lite.TFLiteConverter.from_keras_model(model) 
-    tflite_model = converter.convert()
-    with open('modelsv1/{}.tflite'.format(args.model_type), 'wb') as f:
-        f.write(tflite_model)
-
-

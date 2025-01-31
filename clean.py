@@ -76,16 +76,14 @@ def split_wavs(args):
             rate, wav = downsample_mono(src_fn, args.sr)
             mask, y_mean = envelope(wav, rate, threshold=args.threshold)
             wav = wav[mask]
-            delta_sample = int(dt*rate) 
-
-        if wav.shape[0] < delta_sample:
-            sample = np.zeros(shape=(delta_sample,), dtype=np.int16)
-            sample[:wav.shape[0]] = wav
-            save_sample(sample, rate, target_dir, fn, 0)
-            
-        else:
-            wav = wav[:delta_sample]
-            save_sample(wav, rate, target_dir, fn, 0)
+            delta_sample = int(dt * rate)
+            if wav.shape[0] < delta_sample:
+                sample = np.zeros(shape=(delta_sample,), dtype=np.int16)
+                sample[:wav.shape[0]] = wav
+                save_sample(sample, rate, target_dir, fn, 0)
+            else:  
+                wav = wav[:delta_sample]
+                save_sample(wav, rate, target_dir, fn, 0)
 
 def test_threshold(args):
     src_root = args.src_root
@@ -113,7 +111,7 @@ if __name__ == '__main__':
                         help='directory of audio files in total duration')
     parser.add_argument('--dst_root', type=str, default='clean',
                         help='directory to put audio files split by delta_time')
-    parser.add_argument('--delta_time', '-dt', type=float, default=1.6,
+    parser.add_argument('--delta_time', '-dt', type=float, default=1.7,
                         help='time in seconds to sample audio')
     parser.add_argument('--sr', type=int, default=16000,
                         help='rate to downsample audio')
